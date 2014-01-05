@@ -100,14 +100,31 @@ namespace {
   struct Skill {
     Skill(int l) : level(l), best(MOVE_NONE) {}
    ~Skill() {
-      if (enabled()) // Swap best PV line with the sub-optimal one
-          std::swap(RootMoves[0], *std::find(RootMoves.begin(),
-                    RootMoves.end(), best ? best : pick_move()));
+      if (enabled()) 
+      {   
+          if (level >= 0)
+              // Swap best PV line with the sub-optimal one
+              std::swap(RootMoves[0], *std::find(RootMoves.begin(),
+                        RootMoves.end(), best ? best : pick_move()));
+          else // pick the nth best move from the MultiPV search
+          {
+              // Swap best PV line with the nth line
+              // or return an illegal move if the nth line doesn't exist
+              const Move illegalMove = make_move(SQ_A1, SQ_D2);
+              Move move = best ? best : pick_nth_move(-level);
+              if (move != illegalMove)
+                  std::swap(RootMoves[0], *std::find(RootMoves.begin(),
+                            RootMoves.end(), move));
+              else
+                  RootMoves[0].pv[0] = illegalMove; 
+          }    
+      }
     }
 
     bool enabled() const { return level < 20; }
     bool time_to_pick(int depth) const { return depth == 1 + level; }
     Move pick_move();
+    Move pick_nth_move(unsigned int n);
 
     int level;
     Move best;
@@ -1348,6 +1365,18 @@ moves_loop: // When in check and at SpNode search starts from here
             best = RootMoves[i].pv[0];
         }
     }
+    return best;
+  }
+
+  // pick the nth best move from MultiPV search if it exists
+  // otherwise return the illegal move a1 d2
+  Move Skill::pick_nth_move(unsigned int n) {
+
+    best = make_move(SQ_A1, SQ_D2);
+
+    if (n <= PVSize)
+        best = RootMoves[n-1].pv[0];
+    
     return best;
   }
 
